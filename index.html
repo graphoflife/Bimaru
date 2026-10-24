@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bimaru</title>
+  <meta name="description" content="Bimaru: a calm, open-source battleship logic puzzle. Choose a board size and difficulty, then find the hidden fleet.">
+  <meta name="theme-color" content="#f5f2fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b1a2a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Bimaru">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta property="og:title" content="Bimaru">
+  <meta property="og:description" content="A calm battleship logic puzzle. One solution, no guessing.">
+  <meta property="og:image" content="icons/icon-512.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-screen="menu">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.4a8 8 0 0 1 0 11.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+      <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 9.5h9.5a5 5 0 0 1 0 10H11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+      <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 9.5H9.5a5 5 0 0 0 0 10H13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+      <symbol id="i-cycle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-dasharray="3 3.2" stroke-linecap="round"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></symbol>
+      <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2.5 9.2c2.4 0 2.4-2.2 4.8-2.2s2.4 2.2 4.8 2.2 2.4-2.2 4.8-2.2 2.4 2.2 4.6 2.2M2.5 16.4c2.4 0 2.4-2.2 4.8-2.2s2.4 2.2 4.8 2.2 2.4-2.2 4.8-2.2 2.4 2.2 4.6 2.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-ship" viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="4" fill="currentColor"/><circle cx="7" cy="12" r="1.3" fill="#fff" opacity=".8"/><circle cx="12" cy="12" r="1.3" fill="#fff" opacity=".8"/><circle cx="17" cy="12" r="1.3" fill="#fff" opacity=".8"/></symbol>
+      <symbol id="i-hint" viewBox="0 0 24 24"><path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9L12 16.5l-1.9-4.6L5.5 10l4.6-1.9z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M18.5 15.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" fill="currentColor"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8 12.3l2.7 2.7L16.2 9.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-clear" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M4.5 4v4.5H9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+      <symbol id="i-stats" viewBox="0 0 24 24"><path d="M5 19.5v-6M10 19.5v-11M15 19.5v-8M20 19.5V5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.6v.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.3" fill="currentColor"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12.5v5a2.5 2.5 0 0 0 2.5 2.5h9a2.5 2.5 0 0 0 2.5-2.5v-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+      <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.7V20M8 11h8M4.5 13.5a7.5 7.5 0 0 0 15 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="bg-art" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <main id="app">
+    <!-- Menu -->
+    <section id="screen-menu" class="screen screen-menu is-active" aria-label="Menu">
+      <div class="menu">
+        <div class="hero">
+          <svg class="hero-art" viewBox="0 0 160 100" aria-hidden="true">
+            <defs><clipPath id="hero-clip"><rect x="0" y="0" width="160" height="100"/></clipPath></defs>
+            <g clip-path="url(#hero-clip)">
+              <path class="hero-wave back" d="M-40 74 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--wave)" stroke-width="5" stroke-linecap="round"/>
+            </g>
+            <g class="hero-ship">
+              <path d="M80 44 V16" stroke="var(--ink-soft)" stroke-width="3.5" stroke-linecap="round"/>
+              <path d="M81.5 17 l17 6.5 -17 6.5z" fill="var(--c2)" stroke="var(--c2)" stroke-width="2" stroke-linejoin="round"/>
+              <rect x="32" y="42" width="96" height="28" rx="14" fill="var(--ship)"/>
+              <rect x="63" y="42" width="2.5" height="28" fill="var(--sea)" opacity=".7"/>
+              <rect x="95" y="42" width="2.5" height="28" fill="var(--sea)" opacity=".7"/>
+              <circle cx="48" cy="56" r="4.5" fill="#fff" opacity=".85"/>
+              <circle cx="80" cy="56" r="4.5" fill="#fff" opacity=".85"/>
+              <circle cx="112" cy="56" r="4.5" fill="#fff" opacity=".85"/>
+            </g>
+            <g clip-path="url(#hero-clip)">
+              <path class="hero-wave" d="M-40 82 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--wave)" stroke-width="5" stroke-linecap="round"/>
+            </g>
+          </svg>
+          <h1 class="title" aria-label="Bimaru"><span>B</span><span>i</span><span>m</span><span>a</span><span>r</span><span>u</span></h1>
+          <p class="tagline">Find the hidden fleet. One solution, no guessing.</p>
+        </div>
+
+        <div class="panel">
+          <div>
+            <span class="field-label" id="lbl-size">Board size</span>
+            <div class="seg" id="seg-size" role="radiogroup" aria-labelledby="lbl-size">
+              <button type="button" role="radio" data-value="6" aria-label="6 by 6">6<span class="x">×6</span></button>
+              <button type="button" role="radio" data-value="8" aria-label="8 by 8">8<span class="x">×8</span></button>
+              <button type="button" role="radio" data-value="10" aria-label="10 by 10">10<span class="x">×10</span></button>
+              <button type="button" role="radio" data-value="12" aria-label="12 by 12">12<span class="x">×12</span></button>
+            </div>
+          </div>
+          <div>
+            <span class="field-label" id="lbl-diff">Difficulty</span>
+            <div class="seg" id="seg-diff" role="radiogroup" aria-labelledby="lbl-diff">
+              <button type="button" role="radio" data-value="easy" style="--tone: var(--c4)"><span class="dots"><b class="on"></b><b></b><b></b><b></b></span>Easy</button>
+              <button type="button" role="radio" data-value="medium" style="--tone: var(--c3)"><span class="dots"><b class="on"></b><b class="on"></b><b></b><b></b></span>Medium</button>
+              <button type="button" role="radio" data-value="hard" style="--tone: var(--c5)"><span class="dots"><b class="on"></b><b class="on"></b><b class="on"></b><b></b></span>Hard</button>
+              <button type="button" role="radio" data-value="expert" style="--tone: var(--c1)"><span class="dots"><b class="on"></b><b class="on"></b><b class="on"></b><b class="on"></b></span>Expert</button>
+            </div>
+            <p class="diff-desc" id="diff-desc"></p>
+          </div>
+          <div class="menu-actions">
+            <button type="button" class="btn btn-primary btn-lg" id="btn-play"><svg width="20" height="20"><use href="#i-play"/></svg>New game</button>
+            <button type="button" class="btn btn-soft" id="btn-continue" hidden>Continue <span class="sub" id="continue-info"></span></button>
+          </div>
+        </div>
+
+        <nav class="menu-links" aria-label="More">
+          <button type="button" class="chip" data-open="howto"><svg><use href="#i-help"/></svg>How to play</button>
+          <button type="button" class="chip" data-open="stats"><svg><use href="#i-stats"/></svg>Stats</button>
+          <button type="button" class="chip" data-open="settings"><svg><use href="#i-gear"/></svg>Settings</button>
+        </nav>
+        <p class="credit">Free &amp; open source · <a href="https://github.com/graphoflife/Bimaru" target="_blank" rel="noopener">GitHub</a></p>
+      </div>
+    </section>
+
+    <!-- Game -->
+    <section id="screen-game" class="screen screen-game" aria-label="Puzzle">
+      <header class="topbar">
+        <button type="button" class="icon-btn" id="btn-back" aria-label="Back to menu"><svg><use href="#i-back"/></svg></button>
+        <div class="status">
+          <div class="status-mode" id="status-mode">8×8 · Medium</div>
+          <div class="status-time"><svg><use href="#i-clock"/></svg><span id="status-time">0:00</span></div>
+        </div>
+        <div class="top-actions">
+          <button type="button" class="icon-btn" id="btn-help" aria-label="How to play"><svg><use href="#i-help"/></svg></button>
+          <button type="button" class="icon-btn" id="btn-sound" aria-label="Sound on"><svg><use href="#i-sound"/></svg></button>
+        </div>
+      </header>
+      <div class="play">
+        <div class="board-wrap" id="board-wrap">
+          <div class="board" id="board" role="grid" aria-label="Puzzle board"></div>
+        </div>
+        <div class="side">
+          <div class="fleet-card">
+            <span class="fleet-title">Fleet</span>
+            <div class="fleet" id="fleet" aria-label="Fleet to find"></div>
+          </div>
+          <div class="tools" role="toolbar" aria-label="Tools">
+            <button type="button" class="tool" id="tool-undo" aria-label="Undo"><svg><use href="#i-undo"/></svg>Undo</button>
+            <button type="button" class="tool" id="tool-redo" aria-label="Redo"><svg><use href="#i-redo"/></svg>Redo</button>
+            <button type="button" class="tool tool-mode" id="tool-mode" data-mode="cycle" aria-label="Tap mode">
+              <span class="mode-ico"><svg class="m-cycle"><use href="#i-cycle"/></svg><svg class="m-water"><use href="#i-wave"/></svg><svg class="m-ship"><use href="#i-ship"/></svg></span>
+              <span id="mode-label">Cycle</span>
+            </button>
+            <button type="button" class="tool" id="tool-hint" aria-label="Hint"><svg><use href="#i-hint"/></svg>Hint</button>
+            <button type="button" class="tool" id="tool-check" aria-label="Check"><svg><use href="#i-check"/></svg>Check</button>
+            <button type="button" class="tool" id="tool-clear" aria-label="Clear board"><svg><use href="#i-clear"/></svg>Clear</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Win -->
+  <div class="modal" id="modal-win" role="dialog" aria-modal="true" aria-labelledby="win-title">
+    <div class="scrim"></div>
+    <div class="sheet">
+      <svg class="win-art" viewBox="0 0 160 100" aria-hidden="true">
+        <g class="hero-ship">
+          <path d="M80 44 V14" stroke="var(--ink-soft)" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M81.5 15 l17 6.5 -17 6.5z" fill="var(--c4)" stroke="var(--c4)" stroke-width="2" stroke-linejoin="round"/>
+          <rect x="32" y="42" width="96" height="28" rx="14" fill="var(--ship)"/>
+          <circle cx="48" cy="56" r="4.5" fill="#fff" opacity=".85"/><circle cx="80" cy="56" r="4.5" fill="#fff" opacity=".85"/><circle cx="112" cy="56" r="4.5" fill="#fff" opacity=".85"/>
+        </g>
+        <path d="M10 82 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--wave)" stroke-width="5" stroke-linecap="round"/>
+      </svg>
+      <h2 id="win-title">Fleet found!</h2>
+      <p class="lead" id="win-lead">8×8 · Medium</p>
+      <span class="new-best" id="win-best" hidden>New best time</span>
+      <div class="win-stats">
+        <div class="stat"><b id="win-time">0:00</b><span>Time</span></div>
+        <div class="stat"><b id="win-hints">0</b><span>Hints</span></div>
+        <div class="stat"><b id="win-streak">1</b><span>Solved</span></div>
+      </div>
+      <div class="sheet-actions">
+        <button type="button" class="btn btn-primary btn-lg" id="win-next">Next puzzle</button>
+        <div class="row">
+          <button type="button" class="btn btn-soft" id="win-share"><svg width="18" height="18"><use href="#i-share"/></svg>Share</button>
+          <button type="button" class="btn btn-soft" id="win-menu">Menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to play -->
+  <div class="modal" id="modal-howto" role="dialog" aria-modal="true" aria-labelledby="howto-title">
+    <div class="scrim" data-close></div>
+    <div class="sheet">
+      <button type="button" class="icon-btn sheet-close" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <h2 id="howto-title">How to play</h2>
+      <p class="lead">Find every ship hidden in the sea.</p>
+      <ol class="rules">
+        <li><span class="num">1</span><div>The fleet above the board is hidden in the grid. Ships lie straight, horizontally or vertically.
+          <div class="demo" id="demo-fleet"></div></div></li>
+        <li><span class="num">2</span><div>The numbers tell you how many ship segments are in each row and column.</div></li>
+        <li><span class="num">3</span><div>Ships never touch each other, not even at the corners.</div></li>
+        <li><span class="num">4</span><div>Some pieces are given. A rounded end means the ship continues the other way; a square piece is a middle part.
+          <div class="demo" id="demo-given"></div></div></li>
+        <li><span class="num">5</span><div>Tap a cell to cycle <b>water → ship → empty</b>. Drag to paint many cells. Tap a finished number to fill the rest of its line with water.</div></li>
+      </ol>
+      <p class="keys">Keyboard: <kbd>←↑→↓</kbd> move · <kbd>Space</kbd> cycle · <kbd>W</kbd> water · <kbd>S</kbd> ship · <kbd>⌫</kbd> clear · <kbd>Ctrl Z</kbd> undo · <kbd>H</kbd> hint. Right-click cycles backwards.</p>
+      <div class="sheet-actions"><button type="button" class="btn btn-primary" data-close>Got it</button></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="modal" id="modal-stats" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+    <div class="scrim" data-close></div>
+    <div class="sheet">
+      <button type="button" class="icon-btn sheet-close" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <h2 id="stats-title">Statistics</h2>
+      <p class="lead">Best times for each board.</p>
+      <div class="stats-sum" id="stats-sum"></div>
+      <table class="stats-table" id="stats-table"></table>
+      <div class="sheet-actions"><button type="button" class="btn btn-ghost" id="stats-reset">Reset statistics</button></div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="modal" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="scrim" data-close></div>
+    <div class="sheet">
+      <button type="button" class="icon-btn sheet-close" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <h2 id="settings-title">Settings</h2>
+      <p class="lead">Make it yours.</p>
+      <label class="setting-row"><div><div class="t">Sound</div><div class="d">Soft taps, splashes and chimes</div></div>
+        <span class="switch"><input type="checkbox" id="set-sound"><span></span></span></label>
+      <label class="setting-row"><div><div class="t">Vibration</div><div class="d">Light haptic taps on supported phones</div></div>
+        <span class="switch"><input type="checkbox" id="set-haptics"><span></span></span></label>
+      <label class="setting-row"><div><div class="t">Auto water</div><div class="d">Mark the corners around a new ship piece as water</div></div>
+        <span class="switch"><input type="checkbox" id="set-assist"><span></span></span></label>
+      <div class="setting-row"><div><div class="t">Theme</div></div>
+        <div class="seg seg-sm" id="seg-theme" role="radiogroup" aria-label="Theme">
+          <button type="button" role="radio" data-value="auto">Auto</button>
+          <button type="button" role="radio" data-value="light">Light</button>
+          <button type="button" role="radio" data-value="dark">Dark</button>
+        </div></div>
+      <div class="sheet-actions"><button type="button" class="btn btn-primary" data-close>Done</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <canvas id="fx" aria-hidden="true"></canvas>
+
+  <script src="js/engine.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
