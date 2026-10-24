@@ -424,11 +424,14 @@
     fleetEl.style.setProperty('--m', Math.max(6, Math.min(side ? 18 : 15, Math.floor(m))) + 'px');
   }
 
-  // Straight runs of ship marks. A run is "closed" when water or the edge caps both ends.
+  // Straight runs of ship marks, as the player drew them (the solution is never
+  // consulted). A run is "closed" when water or the edge caps both ends, or when
+  // it already has the fleet's longest length and so cannot grow any further.
   function shipRuns() {
-    const { n, N, marks } = game;
+    const { N, marks } = game;
     const isS = (j) => j >= 0 && marks[j] === SHIP;
     const sea = (j) => j < 0 || marks[j] === WATER;
+    const longest = Math.max(...game.p.fleet);
     const runs = [];
     for (let i = 0; i < N; i++) {
       if (marks[i] !== SHIP) continue;
@@ -437,19 +440,18 @@
         const cells = [i];
         let j = i;
         while (isS(neighbors(j).r)) { j = neighbors(j).r; cells.push(j); }
-        runs.push({ cells, len: cells.length, closed: sea(nb.l) && sea(neighbors(j).r), key: `h${i}-${cells.length}` });
+        runs.push({ cells, len: cells.length, closed: cells.length >= longest || (sea(nb.l) && sea(neighbors(j).r)), key: `h${i}-${cells.length}` });
       }
       if (!isS(nb.u) && isS(nb.d)) {
         const cells = [i];
         let j = i;
         while (isS(neighbors(j).d)) { j = neighbors(j).d; cells.push(j); }
-        runs.push({ cells, len: cells.length, closed: sea(nb.u) && sea(neighbors(j).d), key: `v${i}-${cells.length}` });
+        runs.push({ cells, len: cells.length, closed: cells.length >= longest || (sea(nb.u) && sea(neighbors(j).d)), key: `v${i}-${cells.length}` });
       }
       if (!isS(nb.l) && !isS(nb.r) && !isS(nb.u) && !isS(nb.d)) {
         runs.push({ cells: [i], len: 1, closed: sea(nb.l) && sea(nb.r) && sea(nb.u) && sea(nb.d), key: `s${i}` });
       }
     }
-    void n;
     return runs;
   }
 
