@@ -491,6 +491,24 @@ body.kbd .cell.is-cursor { box-shadow: 0 0 0 3px var(--accent); z-index: 2; }
   100% { box-shadow: 0 0 0 14px transparent; transform: scale(1); }
 }
 .cell.is-nudge { animation: nudge 0.35s var(--ease); }
+
+/* hint highlights and "what if" proofs */
+.count.is-focus { background: var(--accent-soft); color: var(--accent); animation: focus-pulse 0.9s var(--ease) 2; }
+.cell.is-focus { z-index: 2; animation: cell-focus 1.3s var(--ease) 2; }
+.count.is-broken { background: var(--danger-soft); color: var(--danger); animation: shake 0.5s var(--ease); }
+.cell.is-broken { z-index: 2; box-shadow: 0 0 0 3px var(--danger); animation: shake 0.5s var(--ease); }
+@keyframes focus-pulse {
+  0%, 100% { transform: none; }
+  40% { transform: scale(1.25); }
+}
+@keyframes cell-focus {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  35% { box-shadow: 0 0 0 3px var(--accent); }
+}
+.cell.ghost-water { background: var(--sea); }
+.cell.ghost-water .wave { opacity: 0.55; transform: none; }
+.cell.ghost-ship .piece { opacity: 0.5; transform: none; }
+.cell.ghost-assume { z-index: 2; outline: 2.5px dashed var(--accent); outline-offset: -1px; }
 @keyframes nudge {
   0%, 100% { transform: none; }
   30% { transform: scale(0.92) rotate(-4deg); }
@@ -593,9 +611,9 @@ kbd {
 
 /* ---------- toast ---------- */
 .toast {
-  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 25;
-  transform: translate(-50%, 30px) scale(0.9); opacity: 0;
-  max-width: calc(100% - 32px);
+  position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top)); z-index: 25;
+  transform: translate(-50%, -30px) scale(0.9); opacity: 0;
+  width: max-content; max-width: min(520px, calc(100% - 24px));
   display: flex; align-items: center; gap: 12px;
   padding: 12px 18px; border-radius: 999px;
   background: var(--ink); color: var(--bg);
@@ -605,6 +623,7 @@ kbd {
   transition: transform 0.45s var(--spring), opacity 0.25s var(--ease);
 }
 .toast.is-show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast.is-long { border-radius: 22px; font-size: 14.5px; line-height: 1.4; padding: 13px 18px; }
 .toast button {
   appearance: none; border: 0; cursor: pointer; background: transparent; color: var(--accent-2);
   font-weight: 900; padding: 0;

@@ -101,16 +101,51 @@ test('same seed gives the same puzzle', () => {
   assert.deepStrictEqual(a, b);
 });
 
-test('nextHint suggests a correct cell', () => {
-  const p = E.generate({ size: 8, difficulty: 'medium', seed: 5 });
-  const marks = new Array(64).fill(E.UNKNOWN);
-  for (const [i, v] of p.hints) marks[i] = v;
-  for (let step = 0; step < 64; step++) {
-    const h = E.nextHint(p, marks);
-    if (!h) break;
-    assert.strictEqual(h.value, p.solution[h.index] ? E.SHIP : E.WATER);
-    assert.strictEqual(marks[h.index], E.UNKNOWN);
-    marks[h.index] = h.value;
+// The promise of the game: wherever a player stands (any set of correct marks,
+// made in any order), there is a next move that can be proven with the
+// strategies of the puzzle's difficulty, and Hint can explain it.
+test('a provable next move exists from every correct position', () => {
+  const rng = E.mulberry32(2024);
+  for (const size of [6, 8, 10, 12]) {
+    for (const difficulty of Object.keys(E.DIFFICULTIES)) {
+      for (let seed = 1; seed <= 3; seed++) {
+        const p = E.generate({ size, difficulty, seed: seed * 104729 + size });
+        const allowed = E.DIFFICULTIES[difficulty].level;
+        const N = size * size;
+        // Start from the clues plus a random share of correct marks.
+        const marks = new Array(N).fill(E.UNKNOWN);
+        for (const [i, v] of p.hints) marks[i] = v;
+        const share = rng() * 0.7;
+        for (let i = 0; i < N; i++) if (rng() < share) marks[i] = p.solution[i] ? E.SHIP : E.WATER;
+        for (let step = 0; step <= N; step++) {
+          const h = E.nextHint(p, marks);
+          if (!h) break;
+          const where = `size ${size} ${difficulty} seed ${p.seed} step ${step}`;
+          assert.ok(h.why, `no proof found: ${where}`);
+          assert.ok(h.level >= 1 && h.level <= allowed, `needed level ${h.level}: ${where}`);
+          assert.strictEqual(h.value, p.solution[h.index] ? E.SHIP : E.WATER, where);
+          assert.strictEqual(marks[h.index], E.UNKNOWN, where);
+          marks[h.index] = h.value;
+        }
+        assert.ok(marks.every((v, i) => v === (p.solution[i] ? E.SHIP : E.WATER)));
+      }
+    }
   }
-  assert.ok(marks.every((v, i) => v === (p.solution[i] ? E.SHIP : E.WATER)));
+});
+
+test('expert "what if" steps are short and say what breaks', () => {
+  for (let seed = 1; seed <= 6; seed++) {
+    const p = E.generate({ size: 10, difficulty: 'expert', seed });
+    const marks = new Array(100).fill(E.UNKNOWN);
+    for (const [i, v] of p.hints) marks[i] = v;
+    for (let h = E.nextHint(p, marks); h; h = E.nextHint(p, marks)) {
+      if (h.level === 3) {
+        assert.strictEqual(h.why.code, E.WHY.WHAT_IF);
+        assert.ok(h.why.b <= E.WHAT_IF_DEPTH);
+        assert.ok(h.why.extra && h.why.extra.code, 'contradiction is named');
+        assert.strictEqual(h.why.trial[0][0], h.index);
+      }
+      marks[h.index] = h.value;
+    }
+  }
 });

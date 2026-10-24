@@ -22,7 +22,8 @@ one solution and can be solved by logic alone, with no guessing.
 - **Phone and laptop**: touch, mouse and keyboard; installable as an app (PWA) and works offline
 - **Pastel light and dark themes** with smooth animations; ship pieces morph into shape as you play
 - **Satisfying sounds**, synthesized live with the Web Audio API (no audio files), plus light haptics on supported phones
-- Undo and redo, hints that point at the next logical step, mistake check, autosave, stats and best times
+- **Never a guess**: from any position there is a next move you can prove, and Hint shows it with a short explanation
+- Undo and redo, mistake check, autosave, stats and best times
 - Share a puzzle with a link
 - No tracking, no ads, no build step, no dependencies
 
@@ -51,10 +52,22 @@ Difficulty is defined by the reasoning a puzzle needs, not only by the number of
 
 | Level | What you need |
 | --- | --- |
-| Easy | Row and column counts plus ship shapes, with extra clues |
-| Medium | The same techniques, with as few clues as possible |
-| Hard | Fleet reasoning: where can the remaining big ships still fit? |
-| Expert | One-step "what if" reasoning: assume a cell, follow the consequences, find a contradiction |
+| Easy | Row and column counts, the given piece shapes, and the rule that ships never touch. Extra clues. |
+| Medium | The same strategies, with as few clues as possible |
+| Hard | Plus fleet reasoning: where can the missing ships still fit? |
+| Expert | Plus a short "what if": assume a cell is a ship (or water), apply one round of the simple rules, and see a row, column or ship break |
+
+### No guessing, guaranteed
+
+A puzzle only ships if the solver can finish it using the strategies of its level, so you never need
+to guess. This holds from *any* position, not only from the start: whatever correct marks you have
+made, in whatever order, a provable next move exists. The test suite checks exactly that by starting
+from random partial boards and following hints to the end.
+
+The **Hint** button uses the same strategies. It always reveals a cell that can be proven from what
+you already have on the board, and tells you why ("Row 4 already has all 3 ship segments, so the rest
+of it is water"). For an Expert "what if" step it plays the proof on the board: the assumption, what it
+forces, and what breaks.
 
 ## Run it locally
 
@@ -79,7 +92,7 @@ npm test
 The generator lives in [`js/engine.js`](js/engine.js):
 
 1. Place the fleet at random so that no two ships touch.
-2. Run a human-style logical solver that may only use the techniques allowed for the chosen difficulty. Wherever it gets stuck, reveal one cell of the solution as a clue, then try again until it can finish the board.
+2. Run a human-style logical solver that may only use the strategies allowed for the chosen difficulty. Wherever it gets stuck, reveal one cell of the solution as a clue, then try again until it can finish the board.
 3. Try removing each clue and keep the removal if the puzzle is still solvable.
 4. For Hard and Expert, prefer puzzles that the next easier solver cannot finish.
 

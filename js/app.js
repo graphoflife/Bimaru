@@ -21,7 +21,7 @@
     easy: { name: 'Easy', desc: 'Plenty of clues. Counting rows and columns is all you need.' },
     medium: { name: 'Medium', desc: 'Fewer clues. Count carefully and read the ship shapes.' },
     hard: { name: 'Hard', desc: 'Think about where the big ships can still fit.' },
-    expert: { name: 'Expert', desc: 'Very few clues. Sometimes you have to ask “what if…?”' },
+    expert: { name: 'Expert', desc: 'Very few clues. Now and then, ask “what if this were a ship?” and spot what breaks.' },
   };
   const MODES = ['cycle', 'water', 'ship'];
   const MODE_INFO = {
@@ -101,9 +101,10 @@
   ];
 
   let toastTimer = null;
-  function toast(msg, action) {
+  function toast(msg, action, duration) {
     const t = $('#toast');
     t.textContent = '';
+    t.classList.toggle('is-long', msg.length > 60);
     t.appendChild(el('span', null)).textContent = msg;
     if (action) {
       const b = el('button');
@@ -114,8 +115,9 @@
     }
     t.classList.add('is-show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('is-show'), action ? 4200 : 2200);
+    toastTimer = setTimeout(() => t.classList.remove('is-show'), duration || (action ? 4200 : 2200));
   }
+  $('#toast').addEventListener('click', (e) => { if (!e.target.closest('button')) e.currentTarget.classList.remove('is-show'); });
 
   /* ------------------------------------------------------------------ */
   /* Theme                                                                */
@@ -909,7 +911,7 @@
   }
 
   function useHint() {
-    if (!game || game.won) return;
+    if (!game || game.won || game.proof) return;
     const wrong = wrongCells();
     if (wrong.length) {
       showWrong(wrong);
@@ -920,10 +922,24 @@
     }
     const h = E.nextHint(game.p, game.marks);
     if (!h) return;
+    game.hintsUsed++;
+    persistSoon();
+    const info = explain(h);
+    toast(info.text, null, Math.max(4500, info.text.length * 55));
+    Sound.hint();
+    buzz(10);
+    if (h.why && h.why.code === E.WHY.WHAT_IF && h.why.trial && !reduceMotion.matches) playProof(h, info);
+    else {
+      highlight(info.lines, info.cells, 'is-focus', 2600);
+      revealHint(h);
+    }
+  }
+
+  function revealHint(h) {
+    if (!game || game.won || game.marks[h.index] !== UNKNOWN) return;
     const batch = [];
     setMark(h.index, h.value, batch, null);
     commit(batch);
-    game.hintsUsed++;
     const c = cellEls[h.index];
     c.classList.remove('is-hinted');
     void c.offsetWidth;
@@ -931,9 +947,138 @@
     setTimeout(() => c.classList.remove('is-hinted'), 1700);
     const pt = center(c);
     FX.sparkle(pt.x, pt.y, 12, pt.w * 0.3);
-    Sound.hint();
-    buzz(10);
     afterChange(false);
+  }
+
+  // Shows a "what if" proof: the assumption, what it forces, what breaks.
+  function playProof(h, info) {
+    const g = game;
+    const trial = h.why.trial;
+    const step = Math.min(130, 1000 / trial.length);
+    const ghosts = [];
+    game.proof = true;
+    trial.forEach(([i, v], k) => setTimeout(() => {
+      if (game !== g || game.marks[i] !== UNKNOWN) return;
+      const c = cellEls[i];
+      if (v === SHIP) Object.assign(pieceEls[i].style, pieceStyle({ u: 'soft', d: 'soft', l: 'soft', r: 'soft' }, geo.cell, geo.gap));
+      c.classList.add(v === SHIP ? 'ghost-ship' : 'ghost-water');
+      if (k === 0) c.classList.add('ghost-assume');
+      ghosts.push(c);
+      if (v === SHIP) Sound.ship(k); else Sound.water(k);
+    }, k * step));
+    const broke = trial.length * step + 250;
+    setTimeout(() => {
+      if (game !== g) return;
+      highlight(info.lines, info.cells, 'is-broken', 1400);
+      Sound.error();
+      buzz([20, 30, 20]);
+    }, broke);
+    setTimeout(() => {
+      ghosts.forEach((c) => c.classList.remove('ghost-ship', 'ghost-water', 'ghost-assume'));
+      if (game !== g) return;
+      game.proof = false;
+      revealHint(h);
+      Sound.hint();
+    }, broke + 1300);
+  }
+
+  function highlight(lines, cells, cls, ms) {
+    const nodes = lines.map((k) => (k < game.n ? rowEls[k] : colEls[k - game.n]))
+      .concat(cells.map((i) => cellEls[i]));
+    nodes.forEach((x) => { x.classList.remove(cls); void x.offsetWidth; x.classList.add(cls); });
+    setTimeout(() => nodes.forEach((x) => x.classList.remove(cls)), ms);
+  }
+
+  /* Turns a solver reason into a sentence plus the rows, columns and cells it is about. */
+  function explain(h) {
+    const { n, p } = game;
+    const W = E.WHY;
+    const cellName = (i) => `row ${((i / n) | 0) + 1}, column ${(i % n) + 1}`;
+    const lineName = (k) => (k < n ? `Row ${k + 1}` : `Column ${k - n + 1}`);
+    const target = (k) => (k < n ? p.rows[k] : p.cols[k - n]);
+    const segs = (x) => `${x} ship segment${x === 1 ? '' : 's'}`;
+    const what = (v) => (v === SHIP ? 'a ship' : 'water');
+    const why = h.why;
+    if (!why) {
+      return { text: 'No short proof from here (this puzzle is from an older version), so this cell is free.', lines: [], cells: [] };
+    }
+    const out = { lines: [], cells: [] };
+    switch (why.code) {
+      case W.DIAG:
+        out.cells = [why.a];
+        out.text = `Ships never touch, not even at the corners. This cell touches the corner of the ship piece at ${cellName(why.a)}, so it is water.`;
+        break;
+      case W.SHAPE: {
+        out.cells = [why.a];
+        const sh = game.shapes[why.a], at = cellName(why.a);
+        if (sh === SHAPE.SINGLE) out.text = `The round piece at ${at} is a one-cell submarine, so every cell next to it is water.`;
+        else if (sh === SHAPE.MIDDLE) {
+          out.text = h.value === SHIP
+            ? `The square piece at ${at} is the middle of a ship. The other direction is blocked, so the ship continues here.`
+            : `The square piece at ${at} is the middle of a ship that runs the other way, so its sides are water.`;
+        } else {
+          out.text = h.value === SHIP
+            ? `The rounded piece at ${at} is the end of a ship, and the ship continues on its flat side, right here.`
+            : `The rounded piece at ${at} is the end of a ship, so the cells around its rounded side are water.`;
+        }
+        break;
+      }
+      case W.LINE_FULL:
+        out.lines = [why.a];
+        out.text = target(why.a) === 0
+          ? `${lineName(why.a)} has no ship segments at all, so it is all water.`
+          : `${lineName(why.a)} already has ${target(why.a) === 1 ? 'its one ship segment' : `all ${segs(target(why.a))}`}, so the rest of it is water.`;
+        break;
+      case W.LINE_FILL:
+        out.lines = [why.a];
+        out.text = why.b === 1
+          ? `${lineName(why.a)} still needs 1 ship segment and has just 1 empty cell left, so that cell is a ship.`
+          : `${lineName(why.a)} still needs ${segs(why.b)} and has exactly ${why.b} empty cells left, so all of them are ship segments.`;
+        break;
+      case W.NO_FIT:
+        out.cells = [h.index];
+        out.text = 'None of the ships that are still missing can fit through this cell, so it is water.';
+        break;
+      case W.ONLY_PLACES:
+        out.cells = [].concat(...(why.extra || []));
+        out.text = why.b === 1
+          ? `The ship of length ${why.a} has only one place left where it fits, ${h.value === SHIP ? 'and this cell is part of it' : 'and this cell is right at its end, so it is water'}.`
+          : `There are exactly ${why.b} places left for the ${why.b} missing ships of length ${why.a}, so every one is used${h.value === SHIP ? ', and this cell is part of one' : ', and this cell sits at the end of one, so it is water'}.`;
+        break;
+      case W.OVERLAP:
+        out.cells = [].concat(...(why.extra || []));
+        out.text = `The ship of length ${why.a} can only go in ${why.b} places, and every one of them covers this cell.`;
+        break;
+      case W.GROW:
+        out.cells = why.extra || [why.a];
+        out.text = `The ship piece at ${cellName(why.a)} can only be finished in ways that all cover this cell.`;
+        break;
+      case W.WHAT_IF: {
+        const f = why.extra || {};
+        let broke = 'something would break';
+        switch (f.code) {
+          case W.LINE_OVER: broke = `${lineName(f.a).toLowerCase()} would get more than its ${segs(target(f.a))}`; out.lines = [f.a]; break;
+          case W.LINE_UNDER: broke = `${lineName(f.a).toLowerCase()} would no longer have room for its ${segs(target(f.a))}`; out.lines = [f.a]; break;
+          case W.DIAG: broke = 'two ships would touch at a corner'; out.cells = [f.a]; break;
+          case W.SHAPE: broke = `the given piece at ${cellName(f.a)} would no longer fit`; out.cells = [f.a]; break;
+          case W.TOO_LONG:
+            broke = f.b != null
+              ? `${lineName(f.b).toLowerCase()} would get a ship longer than ${f.a}, the longest in the fleet`
+              : `a ship would get longer than ${f.a}, the longest in the fleet`;
+            if (f.b != null) out.lines = [f.b];
+            break;
+          case W.TOO_MANY:
+            broke = `there would be more ships of length ${f.a} than the fleet has`;
+            out.cells = f.extra || [];
+            break;
+        }
+        out.text = `What if this cell were ${what(why.a)}? Then ${broke}. So it must be ${what(h.value)}.`;
+        break;
+      }
+      default:
+        out.text = `This cell must be ${what(h.value)}.`;
+    }
+    return out;
   }
 
   function check() {
