@@ -1,5 +1,5 @@
 /* Offline support: serve the app shell from cache, refresh it in the background. */
-const CACHE = 'bimaru-v4';
+const CACHE = 'bimaru-v5';
 const ASSETS = [
   './',
   'index.html',

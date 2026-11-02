@@ -190,7 +190,7 @@ test('a provable next move exists from every correct position', () => {
   }
 });
 
-test('expert "what if" steps are short and say what breaks', () => {
+test('expert "what if" steps stay local and say what breaks', () => {
   for (let seed = 1; seed <= 6; seed++) {
     const p = E.generate({ size: 10, difficulty: 'expert', seed });
     const marks = new Array(100).fill(E.UNKNOWN);
@@ -198,11 +198,61 @@ test('expert "what if" steps are short and say what breaks', () => {
     for (let h = E.nextHint(p, marks); h; h = E.nextHint(p, marks)) {
       if (h.level === 3) {
         assert.strictEqual(h.why.code, E.WHY.WHAT_IF);
-        assert.ok(h.why.b <= E.WHAT_IF_DEPTH);
         assert.ok(h.why.extra && h.why.extra.code, 'contradiction is named');
         assert.strictEqual(h.why.trial[0][0], h.index);
+        // The assumed cell lies in a nearly finished row or column.
+        const r = (h.index / 10) | 0, c = h.index % 10;
+        let inRow = 0, inCol = 0;
+        for (let k = 0; k < 10; k++) {
+          if (marks[r * 10 + k] === E.UNKNOWN) inRow++;
+          if (marks[k * 10 + c] === E.UNKNOWN) inCol++;
+        }
+        assert.ok(Math.min(inRow, inCol) <= 4, `open cells: ${inRow} and ${inCol}`);
       }
       marks[h.index] = h.value;
     }
   }
+});
+
+test('hard and expert puzzles stay within the limits of their level', () => {
+  for (const size of SIZES) {
+    for (const difficulty of ['hard', 'expert']) {
+      const cfg = E.DIFFICULTIES[difficulty];
+      for (let seed = 1; seed <= 8; seed++) {
+        const p = E.generate({ size, difficulty, seed: seed * 271 + size });
+        const g = E.grade(p, cfg.level);
+        const where = `size ${size} ${difficulty} seed ${p.seed}`;
+        assert.ok(g.solved, where);
+        assert.ok(g.fleet <= cfg.fleet[size][1], `${where}: ${g.fleet} fleet moments`);
+        if (difficulty === 'hard') {
+          assert.ok(g.fleet >= 1, `${where}: no fleet reasoning needed`);
+          assert.ok(!E.solve(p, 1).solved, `${where}: easy techniques are enough`);
+        } else {
+          assert.ok(g.whatIf >= 1 && g.whatIf <= cfg.whatIf[size][1], `${where}: ${g.whatIf} what-if moments`);
+          assert.strictEqual(g.whatIfHidden.length, 0, `${where}: a what-if is too hidden`);
+          assert.ok(!E.solve(p, 2).solved, `${where}: hard techniques are enough`);
+        }
+      }
+    }
+  }
+});
+
+test('hard puzzles use all the published fleet techniques', () => {
+  const seen = new Set();
+  for (const size of [8, 10, 12, 15]) {
+    for (let seed = 1; seed <= 12; seed++) {
+      const p = E.generate({ size, difficulty: 'hard', seed: seed * 613 + size });
+      const marks = new Array(size * size).fill(E.UNKNOWN);
+      for (const [i, v] of p.hints) marks[i] = v;
+      for (let h = E.nextHint(p, marks); h; h = E.nextHint(p, marks)) {
+        seen.add(h.why.code);
+        marks[h.index] = h.value;
+      }
+    }
+  }
+  const W = E.WHY;
+  for (const code of [W.ONLY_PLACES, W.OVERLAP, W.ONE_WAY, W.LINE_WAYS, W.NO_FIT, W.GROW]) {
+    assert.ok(seen.has(code), `technique ${code} never appeared`);
+  }
+  assert.ok(!seen.has(W.WHAT_IF), 'hard puzzles never need a what-if');
 });

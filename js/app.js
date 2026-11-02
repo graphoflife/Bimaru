@@ -20,8 +20,8 @@
   const DIFF_INFO = {
     easy: { name: 'Easy', desc: 'Plenty of clues. Counting rows and columns is all you need.' },
     medium: { name: 'Medium', desc: 'Fewer clues. Count carefully and read the ship shapes.' },
-    hard: { name: 'Hard', desc: 'Think about where the big ships can still fit.' },
-    expert: { name: 'Expert', desc: 'Very few clues. Now and then, ask “what if this were a ship?” and spot what breaks.' },
+    hard: { name: 'Hard', desc: 'Work out where the big ships can still fit and how nearly full rows can finish.' },
+    expert: { name: 'Expert', desc: 'Very few clues. A few times per puzzle, test a cell in a nearly full row: “what if…?”' },
   };
   const MODES = ['cycle', 'water', 'ship'];
   const MODE_INFO = {
@@ -101,11 +101,13 @@
   ];
 
   let toastTimer = null;
-  function toast(msg, action, duration) {
+  function toast(msg, action, duration, title) {
     const t = $('#toast');
     t.textContent = '';
-    t.classList.toggle('is-long', msg.length > 60);
-    t.appendChild(el('span', null)).textContent = msg;
+    t.classList.toggle('is-long', msg.length > 60 || !!title);
+    const body = t.appendChild(el('span', null));
+    if (title) body.appendChild(el('b', 'toast-title')).textContent = title;
+    body.appendChild(document.createTextNode(msg));
     if (action) {
       const b = el('button');
       b.type = 'button';
@@ -927,7 +929,7 @@
     game.hintsUsed++;
     persistSoon();
     const info = explain(h);
-    toast(info.text, null, Math.max(4500, info.text.length * 55));
+    toast(info.text, null, Math.max(4500, info.text.length * 55), info.name);
     Sound.hint();
     buzz(10);
     if (h.why && h.why.code === E.WHY.WHAT_IF && h.why.trial && !reduceMotion.matches) playProof(h, info);
@@ -991,7 +993,21 @@
     setTimeout(() => nodes.forEach((x) => x.classList.remove(cls)), ms);
   }
 
-  /* Turns a solver reason into a sentence plus the rows, columns and cells it is about. */
+  const TECHNIQUE_NAMES = {
+    [E.WHY.DIAG]: 'Corners',
+    [E.WHY.SHAPE]: 'Given piece',
+    [E.WHY.LINE_FULL]: 'The rest is water',
+    [E.WHY.LINE_FILL]: 'Only spots left',
+    [E.WHY.NO_FIT]: 'No ship fits here',
+    [E.WHY.ONLY_PLACES]: 'Only place it fits',
+    [E.WHY.OVERLAP]: 'Overlap',
+    [E.WHY.ONE_WAY]: 'One way only',
+    [E.WHY.GROW]: 'Finish the ship',
+    [E.WHY.LINE_WAYS]: 'Finish the line',
+    [E.WHY.WHAT_IF]: 'What if?',
+  };
+
+  /* Turns a solver reason into a technique name, a sentence, and the rows, columns and cells it is about. */
   function explain(h) {
     const { n, p } = game;
     const W = E.WHY;
@@ -1004,7 +1020,7 @@
     if (!why) {
       return { text: 'No short proof from here (this puzzle is from an older version), so this cell is free.', lines: [], cells: [] };
     }
-    const out = { lines: [], cells: [] };
+    const out = { lines: [], cells: [], name: TECHNIQUE_NAMES[why.code] };
     switch (why.code) {
       case W.DIAG:
         out.cells = [why.a];
@@ -1050,6 +1066,18 @@
       case W.OVERLAP:
         out.cells = [].concat(...(why.extra || []));
         out.text = `The ship of length ${why.a} can only go in ${why.b} places, and every one of them covers this cell.`;
+        break;
+      case W.ONE_WAY:
+        out.cells = [].concat(...(why.extra || []));
+        out.text = h.value === SHIP
+          ? `The ${why.b} missing ships of length ${why.a} have few places left, and every way to fit them together covers this cell.`
+          : `There is only one way to fit the ${why.b} missing ships of length ${why.a}, and this cell sits at the end of one, so it is water.`;
+        break;
+      case W.LINE_WAYS:
+        out.lines = [why.a];
+        out.text = why.b === 1
+          ? `With the ships still missing, ${lineName(why.a).toLowerCase()} can only be finished one way, and this cell is ${what(h.value)} in it.`
+          : `With the ships still missing, ${lineName(why.a).toLowerCase()} can only be finished ${why.b} ways, and this cell is ${what(h.value)} in all of them.`;
         break;
       case W.GROW:
         out.cells = why.extra || [why.a];
@@ -1455,24 +1483,23 @@
   $('#size-desc').textContent = fleetText();
   $('#diff-desc').textContent = DIFF_INFO[settings.difficulty].desc;
 
-  $('#btn-play').addEventListener('click', () => {
-    const b = $('#btn-play');
+  // Lets the press animation play before the generation work, and says so on big boards.
+  function startFrom(b, size, difficulty) {
+    const label = b.innerHTML;
     b.disabled = true;
-    // Let the press animation play before the (short) generation work.
+    if (size >= 12) b.textContent = 'Charting the sea…';
     setTimeout(() => {
-      try { newGame(settings.size, settings.difficulty); } finally { b.disabled = false; }
+      try { newGame(size, difficulty); } finally { b.disabled = false; b.innerHTML = label; }
     }, 90);
-  });
+  }
+  $('#btn-play').addEventListener('click', (e) => startFrom(e.currentTarget, settings.size, settings.difficulty));
   $('#btn-continue').addEventListener('click', () => {
     const s = savedGame();
     if (s) startGame(s.p, s);
   });
   $('#btn-back').addEventListener('click', goMenu);
   $('#btn-help').addEventListener('click', () => showModal('howto'));
-  $('#win-next').addEventListener('click', () => {
-    const p = game.p;
-    newGame(p.n, p.difficulty);
-  });
+  $('#win-next').addEventListener('click', (e) => startFrom(e.currentTarget, game.p.n, game.p.difficulty));
   $('#win-menu').addEventListener('click', goMenu);
   $('#win-share').addEventListener('click', share);
 

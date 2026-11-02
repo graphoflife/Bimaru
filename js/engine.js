@@ -41,19 +41,26 @@
   };
 
   // Bumped whenever the generator changes, so old saved puzzles can be told apart.
-  const ENGINE_VERSION = 3;
+  const ENGINE_VERSION = 4;
 
   // level: strongest solving technique the puzzle may require
-  //   1 = row/column counts, given segment shapes, no-touching rule
-  //   2 = + fleet reasoning ("where can the battleship still go?")
-  //   3 = + a short "what if" (assume a cell, a couple of simple steps, contradiction)
-  // avoid: the puzzle should NOT be solvable at this level (best effort)
-  // extra: additional free hints, as a fraction of the board size
+  //   1 = row/column counts, given piece shapes, ships never touch
+  //   2 = + fleet reasoning and nearly complete rows and columns
+  //   3 = + a short, local "what if"
+  // avoid: the puzzle must NOT be solvable at this level
+  // extra: additional free clues, as a fraction of the board size
+  // fleet, whatIf: for each board size, [min, max] moments per puzzle at which a
+  // person gets stuck and needs that technique. Over the max, the generator adds
+  // a clue: enough to feel like the level, never a wall of hard steps.
+  const FLEET_MOMENTS = { 6: [2, 3], 8: [2, 4], 10: [2, 5], 12: [3, 7], 15: [4, 9] };
   const DIFFICULTIES = {
     easy: { level: 1, avoid: 0, extra: 0.6 },
     medium: { level: 1, avoid: 0, extra: 0 },
-    hard: { level: 2, avoid: 1, extra: 0 },
-    expert: { level: 3, avoid: 2, extra: 0 },
+    hard: { level: 2, avoid: 1, extra: 0, fleet: FLEET_MOMENTS },
+    expert: {
+      level: 3, avoid: 2, extra: 0, fleet: FLEET_MOMENTS,
+      whatIf: { 6: [1, 2], 8: [1, 3], 10: [1, 3], 12: [1, 4], 15: [2, 5] },
+    },
   };
 
   /* ------------------------------------------------------------------ */
@@ -171,16 +178,23 @@
   /* Logical solver                                                       */
   /* ------------------------------------------------------------------ */
   //
-  // Every deduction comes from a strategy a person can apply by hand:
+  // Every deduction comes from a technique taught in Bimaru guides, kept at a size
+  // a person can follow:
   //   level 1  rows/columns, given piece shapes, ships never touch
-  //   level 2  fleet reasoning: where can the missing ships still fit?
-  //   level 3  a short "what if": assume a cell, apply level-1 rules for at
-  //            most WHAT_IF_DEPTH rounds, and run into a contradiction.
+  //   level 2  where can the missing ships still fit, and how can a nearly
+  //            complete row or column be finished?
+  //   level 3  a local "what if": assume a cell in a nearly finished row or column,
+  //            follow it through its own row and column, and hit a contradiction.
   // With tracing on, every newly known cell remembers why (st.why) and a
   // contradiction remembers what broke (st.fail). The app turns these
   // reasons into the explanations shown by the Hint button.
 
-  const WHAT_IF_DEPTH = 1;
+  const PLACE_LIMIT = 7; // positions to compare for one ship type
+  const COMBO_SHIPS = 3; // ships of one type to fit together
+  const LINE_NEAR = 2; // a line is nearly complete with this few ship segments or water cells left
+  const LINE_WAYS_LIMIT = 6; // ways to finish a line to compare
+  const WHAT_IF_OPEN = 4; // what if: test cells in rows and columns with this few open cells
+  const WHAT_IF_HIDDEN = 12; // what if: tries per working assumption before a moment counts as too hidden
 
   const WHY = {
     DIAG: 1, // a: ship cell. Ships never touch, not even at corners.
@@ -197,7 +211,9 @@
     TOO_MANY: 12, // a: length. More finished ships of this length than the fleet has.
     NO_ROOM: 13, // a: length. The missing ships of this length no longer fit.
     STUCK: 14, // a: first cell of a ship piece that can no longer be finished.
-    WHAT_IF: 15, // a: assumed value, b: rounds needed, extra: the contradiction it leads to.
+    WHAT_IF: 15, // a: assumed value, extra: the contradiction it leads to, trial: what it forces.
+    ONE_WAY: 16, // a: length, b: ships left. extra: the places. Ships fit together only in ways that decide this cell.
+    LINE_WAYS: 17, // a: line, b: ways left to finish it. The cell is the same in all of them.
   };
 
   // Lines are numbered 0..n-1 for rows and n..2n-1 for columns.
@@ -214,6 +230,7 @@
     return {
       n: p.n, geo, cells, shape, rows: p.rows, cols: p.cols, fleet: counts, maxLen,
       trace: !!trace, why: trace ? new Array(geo.N).fill(null) : null, order: null, fail: null,
+      score: null,
     };
   }
 
@@ -292,29 +309,37 @@
     return changed;
   }
 
-  // Level 1: row and column counts (and no run longer than the longest ship).
-  function lineRule(st) {
+  // Row and column counts for one line (and no run longer than the longest ship).
+  // With fill off it only looks for contradictions.
+  function lineStep(st, line, fill) {
     const { n, cells, rows, cols, maxLen } = st;
+    const isRow = line < n, idx = isRow ? line : line - n;
+    const base = isRow ? idx * n : idx, step = isRow ? 1 : n;
+    const target = isRow ? rows[idx] : cols[idx];
+    let s = 0, u = 0, run = 0;
+    for (let k = 0, j = base; k < n; k++, j += step) {
+      const v = cells[j];
+      if (v === SHIP) { s++; if (++run > maxLen) return broke(st, WHY.TOO_LONG, maxLen, line); }
+      else { run = 0; if (v === UNKNOWN) u++; }
+    }
+    if (s > target) return broke(st, WHY.LINE_OVER, line);
+    if (s + u < target) return broke(st, WHY.LINE_UNDER, line);
+    if (!fill || u === 0 || (s !== target && s + u !== target)) return 0;
+    const v = s === target ? WATER : SHIP;
+    const code = s === target ? WHY.LINE_FULL : WHY.LINE_FILL;
+    for (let k = 0, j = base; k < n; k++, j += step) {
+      if (cells[j] === UNKNOWN) put(st, j, v, code, line, target - s);
+    }
+    return 1;
+  }
+
+  // Level 1: row and column counts.
+  function lineRule(st) {
     let changed = 0;
-    for (let line = 0; line < 2 * n; line++) {
-      const isRow = line < n, idx = isRow ? line : line - n;
-      const base = isRow ? idx * n : idx, step = isRow ? 1 : n;
-      const target = isRow ? rows[idx] : cols[idx];
-      let s = 0, u = 0, run = 0;
-      for (let k = 0, j = base; k < n; k++, j += step) {
-        const v = cells[j];
-        if (v === SHIP) { s++; if (++run > maxLen) return broke(st, WHY.TOO_LONG, maxLen, line); }
-        else { run = 0; if (v === UNKNOWN) u++; }
-      }
-      if (s > target) return broke(st, WHY.LINE_OVER, line);
-      if (s + u < target) return broke(st, WHY.LINE_UNDER, line);
-      if (u === 0 || (s !== target && s + u !== target)) continue;
-      const v = s === target ? WATER : SHIP;
-      const code = s === target ? WHY.LINE_FULL : WHY.LINE_FILL;
-      for (let k = 0, j = base; k < n; k++, j += step) {
-        if (cells[j] === UNKNOWN) put(st, j, v, code, line, target - s);
-      }
-      changed = 1;
+    for (let line = 0; line < 2 * st.n; line++) {
+      const r = lineStep(st, line, true);
+      if (r < 0) return -1;
+      changed |= r;
     }
     return changed;
   }
@@ -360,9 +385,41 @@
     return { comp, list };
   }
 
+  // Which sets of k positions can hold all the missing ships of one length together?
+  // Returns how many sets work, which positions they use and how often each cell is used.
+  function shipCombos(st, places, k, rowS, colS) {
+    const { n, cells, rows, cols } = st;
+    const rowFree = rows.map((t, r) => t - rowS[r]), colFree = cols.map((t, c) => t - colS[c]);
+    const touches = (a, b) => a.some((x) => b.some((y) =>
+      Math.abs(((x / n) | 0) - ((y / n) | 0)) <= 1 && Math.abs((x % n) - (y % n)) <= 1));
+    const used = new Uint8Array(places.length), hits = new Int16Array(cells.length);
+    const chosen = [];
+    let combos = 0;
+    (function choose(from) {
+      if (chosen.length === k) {
+        combos++;
+        for (const c of chosen) { used[c] = 1; for (const j of places[c]) hits[j]++; }
+        return;
+      }
+      for (let c = from; c < places.length; c++) {
+        if (chosen.some((o) => touches(places[o], places[c]))) continue;
+        const fresh = places[c].filter((j) => cells[j] === UNKNOWN);
+        for (const j of fresh) { rowFree[(j / n) | 0]--; colFree[j % n]--; }
+        if (fresh.every((j) => rowFree[(j / n) | 0] >= 0 && colFree[j % n] >= 0)) {
+          chosen.push(c);
+          choose(c + 1);
+          chosen.pop();
+        }
+        for (const j of fresh) { rowFree[(j / n) | 0]++; colFree[j % n]++; }
+      }
+    })(0);
+    return { combos, used, hits };
+  }
+
   // Level 2: where can the missing ships still fit? Assumes level 1 is done.
+  // Goes from the longest ship down, the order Bimaru guides recommend.
   function fleetPass(st) {
-    const { n, cells, shape, rows, cols, fleet, maxLen, trace } = st;
+    const { n, cells, shape, rows, cols, fleet, maxLen } = st;
     const { N, up, down, left, right } = st.geo;
 
     const rowS = new Int16Array(n), colS = new Int16Array(n);
@@ -381,15 +438,15 @@
     const compHits = new Int32Array(C);
     const compCell = new Int32Array(C * N);
     const ships = [], waters = []; // [cell, code, a, b, extra]
-    const cellsOf = (start, step, L) => {
-      const out = [];
-      for (let k = 0; k < L; k++) out.push(start + k * step);
-      return out;
+    const ends = (cs) => {
+      const step = cs.length > 1 ? cs[1] - cs[0] : 1, last = cs[cs.length - 1];
+      return [step === 1 ? left[cs[0]] : up[cs[0]], step === 1 ? right[last] : down[last]];
     };
 
-    for (let L = 1; L <= maxLen; L++) {
-      if (remaining[L] <= 0) continue;
-      const placements = [];
+    for (let L = maxLen; L >= 1; L--) {
+      const k = remaining[L];
+      if (k <= 0) continue;
+      let places = [];
       for (let dir = 0; dir < (L === 1 ? 1 : 2); dir++) {
         const step = dir === 0 ? 1 : n;
         const maxR = dir === 1 ? n - L : n - 1;
@@ -401,7 +458,7 @@
             const after = dir === 0 ? right[last] : down[last];
             if (isShip(cells, before) || isShip(cells, after)) continue;
             let fresh = 0, ok = true;
-            for (let k = 0, j = start; k < L; k++, j += step) {
+            for (let q = 0, j = start; q < L; q++, j += step) {
               const v = cells[j];
               if (v === WATER) { ok = false; break; }
               const p1 = dir === 0 ? up[j] : left[j], p2 = dir === 0 ? down[j] : right[j];
@@ -409,51 +466,60 @@
               const sh = shape[j];
               if (sh !== NONE) {
                 const want = L === 1 ? SINGLE
-                  : k === 0 ? (dir === 0 ? LEFT : TOP)
-                    : k === L - 1 ? (dir === 0 ? RIGHT : BOTTOM) : MIDDLE;
+                  : q === 0 ? (dir === 0 ? LEFT : TOP)
+                    : q === L - 1 ? (dir === 0 ? RIGHT : BOTTOM) : MIDDLE;
                 if (sh !== want) { ok = false; break; }
               }
               if (v === UNKNOWN) {
                 fresh++;
-                if (dir === 0 ? colS[c + k] + 1 > cols[c + k] : rowS[r + k] + 1 > rows[r + k]) { ok = false; break; }
+                if (dir === 0 ? colS[c + q] + 1 > cols[c + q] : rowS[r + q] + 1 > rows[r + q]) { ok = false; break; }
               }
             }
             if (!ok) continue;
             if (dir === 0 ? rowS[r] + fresh > rows[r] : colS[c] + fresh > cols[c]) continue;
             if (fresh === 0 && list[comp[start]].closed) continue; // an already finished ship
-            placements.push(start, step);
+            const cs = [];
+            for (let q = 0; q < L; q++) cs.push(start + q * step);
+            places.push(cs);
           }
         }
       }
 
-      const count = placements.length / 2;
-      if (count < remaining[L]) return broke(st, WHY.NO_ROOM, L);
-      const places = trace ? [] : null;
-      if (trace) for (let p = 0; p < placements.length; p += 2) places.push(cellsOf(placements[p], placements[p + 1], L));
-      const hits = new Int16Array(N);
-      for (let p = 0; p < placements.length; p += 2) {
-        const start = placements[p], step = placements[p + 1];
+      const count = places.length;
+      if (count < k) return broke(st, WHY.NO_ROOM, L);
+      if (count === k) {
+        // Only place it fits: every position left is used.
+        for (const cs of places) {
+          for (const j of cs) ships.push([j, WHY.ONLY_PLACES, L, count, places]);
+          for (const j of ends(cs)) waters.push([j, WHY.ONLY_PLACES, L, count, places]);
+        }
+      } else if (k === 1 && count <= PLACE_LIMIT) {
+        // Overlap: squares that every position of this ship covers.
+        const hits = new Int16Array(N);
+        for (const cs of places) for (const j of cs) hits[j]++;
+        for (let j = 0; j < N; j++) if (hits[j] === count) ships.push([j, WHY.OVERLAP, L, count, places]);
+      } else if (k <= COMBO_SHIPS && count <= PLACE_LIMIT) {
+        // One way only: positions that can't sit together rule each other out.
+        const { combos, used, hits } = shipCombos(st, places, k, rowS, colS);
+        if (combos === 0) return broke(st, WHY.NO_ROOM, L);
+        const all = places;
+        places = places.filter((_, c) => used[c]);
+        for (let j = 0; j < N; j++) if (hits[j] === combos) ships.push([j, WHY.ONE_WAY, L, k, all]);
+        if (combos === 1) for (const cs of places) for (const j of ends(cs)) waters.push([j, WHY.ONE_WAY, L, k, all]);
+      }
+
+      for (const cs of places) {
         let seen = -1;
-        for (let k = 0, j = start; k < L; k++, j += step) {
-          hits[j]++;
+        for (const j of cs) {
           cover[j] = 1;
           const id = comp[j];
           if (id >= 0 && id !== seen) {
-            // A placement may swallow several components; count each one once.
+            // A position may swallow several ship pieces; count each one once.
             seen = id;
             compHits[id]++;
-            for (let kk = 0, jj = start; kk < L; kk++, jj += step) compCell[id * N + jj]++;
+            for (const jj of cs) compCell[id * N + jj]++;
           }
         }
-        if (count === remaining[L]) {
-          for (let k = 0, j = start; k < L; k++, j += step) ships.push([j, WHY.ONLY_PLACES, L, count, places]);
-          const last = start + step * (L - 1);
-          waters.push([step === 1 ? left[start] : up[start], WHY.ONLY_PLACES, L, count, places]);
-          waters.push([step === 1 ? right[last] : down[last], WHY.ONLY_PLACES, L, count, places]);
-        }
-      }
-      if (remaining[L] === 1 && count > 1) {
-        for (let j = 0; j < N; j++) if (hits[j] === count) ships.push([j, WHY.OVERLAP, L, count, places]);
       }
     }
 
@@ -461,6 +527,7 @@
       const c = list[id];
       if (c.closed) continue;
       if (compHits[id] === 0) return broke(st, WHY.STUCK, c.cells[0]);
+      if (compHits[id] > PLACE_LIMIT) continue;
       const base = id * N;
       for (let j = 0; j < N; j++) {
         if (compCell[base + j] === compHits[id]) ships.push([j, WHY.GROW, c.cells[0], c.len, c.cells]);
@@ -471,6 +538,77 @@
     let changed = 0, r;
     for (const d of ships) { if ((r = put(st, d[0], SHIP, d[1], d[2], d[3], d[4])) < 0) return -1; changed |= r; }
     for (const d of waters) { if ((r = put(st, d[0], WATER, d[1], d[2], d[3], d[4])) < 0) return -1; changed |= r; }
+    return changed;
+  }
+
+  // Level 2: a nearly complete row or column can often be finished in only a few
+  // ways. Whatever all of them agree on is certain. Assumes level 1 is done.
+  function lineWaysRule(st) {
+    const { n, cells, shape, rows, cols, fleet, maxLen } = st;
+    const { up, down, left, right } = st.geo;
+    const { comp, list } = components(st);
+    const rem = new Int16Array(maxLen + 1);
+    for (let L = 1; L <= maxLen; L++) rem[L] = fleet[L];
+    for (const c of list) if (c.closed && c.len <= maxLen) rem[c.len]--;
+    let longest = 0;
+    for (let L = 1; L <= maxLen; L++) if (rem[L] > 0) longest = L;
+    const pick = new Uint8Array(n), yes = new Int16Array(n), counts = new Int16Array(maxLen + 2);
+    let changed = 0;
+
+    for (let line = 0; line < 2 * n; line++) {
+      const isRow = line < n, idx = isRow ? line : line - n;
+      const at = (k) => (isRow ? idx * n + k : k * n + idx);
+      const open = [];
+      let s = 0;
+      for (let k = 0; k < n; k++) {
+        const v = cells[at(k)];
+        if (v === UNKNOWN) open.push(k);
+        else if (v === SHIP) s++;
+      }
+      const need = (isRow ? rows[idx] : cols[idx]) - s;
+      if (need <= 0 || need >= open.length || Math.min(need, open.length - need) > LINE_NEAR) continue;
+
+      const on = (k) => k >= 0 && k < n && (pick[k] === 1 || cells[at(k)] === SHIP);
+      const fits = () => {
+        counts.fill(0);
+        for (let k = 0; k < n; k++) {
+          if (!on(k) || on(k - 1)) continue;
+          let len = 1, fresh = pick[k] === 1;
+          while (on(k + len)) { if (pick[k + len]) fresh = true; len++; }
+          const first = at(k);
+          if (!fresh && comp[first] >= 0 && list[comp[first]].closed) continue; // already finished
+          if (len > longest) return false;
+          if (len >= 2) {
+            if (shape[first] === MIDDLE || shape[at(k + len - 1)] === MIDDLE) return false;
+            if (++counts[len] > rem[len]) return false;
+          } else if (isSea(cells, isRow ? up[first] : left[first]) && isSea(cells, isRow ? down[first] : right[first])) {
+            // Closed on all sides: a one-cell ship.
+            if (shape[first] === MIDDLE || ++counts[1] > rem[1]) return false;
+          }
+        }
+        return true;
+      };
+
+      yes.fill(0);
+      let ways = 0;
+      (function choose(from, left2) {
+        if (left2 === 0) {
+          if (fits()) { ways++; for (const k of open) if (pick[k]) yes[k]++; }
+          return;
+        }
+        for (let o = from; o <= open.length - left2; o++) {
+          pick[open[o]] = 1;
+          choose(o + 1, left2 - 1);
+          pick[open[o]] = 0;
+        }
+      })(0, need);
+      if (ways === 0) return broke(st, WHY.LINE_UNDER, line);
+      if (ways > LINE_WAYS_LIMIT) continue;
+      for (const k of open) {
+        if (yes[k] === ways) { put(st, at(k), SHIP, WHY.LINE_WAYS, line, ways); changed = 1; }
+        else if (yes[k] === 0) { put(st, at(k), WATER, WHY.LINE_WAYS, line, ways); changed = 1; }
+      }
+    }
     return changed;
   }
 
@@ -491,17 +629,38 @@
     return null;
   }
 
-  // Level 3: assume cell i has value v, apply the level-1 rules for at most
-  // `depth` rounds and count the finished ships. Returns what breaks, or null.
-  function whatIfFails(st, i, v, depth) {
+  // Cells that are natural to test: those in nearly finished rows and columns.
+  function whatIfCandidates(st) {
+    const { n, cells } = st;
+    const mark = new Uint8Array(cells.length);
+    for (let line = 0; line < 2 * n; line++) {
+      const isRow = line < n, idx = isRow ? line : line - n;
+      const base = isRow ? idx * n : idx, step = isRow ? 1 : n;
+      let u = 0;
+      for (let k = 0, j = base; k < n; k++, j += step) if (cells[j] === UNKNOWN) u++;
+      if (u > WHAT_IF_OPEN) continue;
+      for (let k = 0, j = base; k < n; k++, j += step) if (cells[j] === UNKNOWN) mark[j] = 1;
+    }
+    const out = [];
+    for (let i = 0; i < cells.length; i++) if (mark[i]) out.push(i);
+    return out;
+  }
+
+  // Level 3: assume cell i has value v and follow it locally: its corners, any given
+  // piece it touches, its own row and column, and the corners of what that forces.
+  // Returns what breaks anywhere on the board (and the cells it forced), or null.
+  function whatIfFails(st, i, v) {
     const t = cloneState(st);
     t.cells[i] = v;
-    for (let d = 0; d < depth; d++) {
-      const r = basicPass(t);
-      if (r < 0) return t.fail || true;
-      if (r === 0) break;
-    }
-    return fleetCountFails(t);
+    if (st.trace) t.order = [];
+    let broken = diagRule(t) < 0 || shapeRule(t) < 0 ||
+      lineStep(t, (i / st.n) | 0, true) < 0 || lineStep(t, st.n + (i % st.n), true) < 0 || diagRule(t) < 0;
+    for (let line = 0; !broken && line < 2 * st.n; line++) broken = lineStep(t, line, false) < 0;
+    const fail = broken ? (t.fail || true) : fleetCountFails(t);
+    if (!fail) return null;
+    const trial = [[i, v]];
+    if (t.order) for (const j of t.order) trial.push([j, t.cells[j]]);
+    return { fail, trial };
   }
 
   function hasUnknown(cells) {
@@ -523,17 +682,27 @@
     return true;
   }
 
+  function newlyKnown(before, cells) {
+    const out = [];
+    for (let i = 0; i < cells.length; i++) if (before[i] === UNKNOWN && cells[i] !== UNKNOWN) out.push(i);
+    return out;
+  }
+
   function propagate(st, level) {
     for (;;) {
       const b = basicPass(st);
       if (b < 0) return false;
       if (b > 0) continue;
-      if (level >= 2) {
-        const f = fleetPass(st);
-        if (f < 0) return false;
-        if (f > 0) continue;
+      if (level < 2) return true;
+      const before = st.score ? st.cells.slice() : null;
+      let f = fleetPass(st);
+      if (f === 0) f = lineWaysRule(st);
+      if (f < 0) return false;
+      if (f === 0) return true;
+      if (st.score) {
+        st.score.fleet++;
+        st.score.fleetCells.push(...newlyKnown(before, st.cells));
       }
-      return true;
     }
   }
 
@@ -543,33 +712,47 @@
   }
 
   // Runs the solver on st in place. Returns false on contradiction.
-  function runSolver(st, level, depth) {
+  function runSolver(st, level) {
     if (!consistent(st, Math.min(level, 2))) return false;
     if (level < 3) return true;
-    const { N } = st.geo;
-    let progress = true;
-    while (progress && hasUnknown(st.cells)) {
-      progress = false;
-      for (let i = 0; i < N; i++) {
-        if (st.cells[i] !== UNKNOWN) continue;
-        for (const guess of [SHIP, WATER]) {
-          if (whatIfFails(st, i, guess, depth)) {
-            st.cells[i] = guess === SHIP ? WATER : SHIP;
-            if (!consistent(st, 2)) return false;
-            progress = true;
-            break;
-          }
+    while (hasUnknown(st.cells)) {
+      const cands = whatIfCandidates(st);
+      let hit = -1, guess = 0, works = 0;
+      // Grading looks at every assumption, to see how hard this moment is to find.
+      for (let c = 0; c < cands.length && (st.score || hit < 0); c++) {
+        for (const g of [SHIP, WATER]) {
+          if (!whatIfFails(st, cands[c], g)) continue;
+          works++;
+          if (hit < 0) { hit = cands[c]; guess = g; }
         }
       }
+      if (hit < 0) return true;
+      st.cells[hit] = guess === SHIP ? WATER : SHIP;
+      if (st.score) {
+        st.score.whatIf++;
+        st.score.whatIfCells.push(hit);
+        if (cands.length * 2 > works * WHAT_IF_HIDDEN) st.score.whatIfHidden.push(hit);
+      }
+      if (!consistent(st, 2)) return false;
     }
     return true;
   }
 
-  function solve(p, level, depth) {
+  function solve(p, level) {
     const st = makeState(p);
-    const ok = runSolver(st, level, depth || WHAT_IF_DEPTH);
+    const ok = runSolver(st, level);
     const solved = ok && !hasUnknown(st.cells) && validFull(st);
     return { ok, solved, cells: st.cells };
+  }
+
+  // How many moments of each technique a puzzle needs when solved with simple
+  // techniques first, and which cells those moments decided.
+  function grade(p, level) {
+    const st = makeState(p);
+    st.score = { fleet: 0, whatIf: 0, fleetCells: [], whatIfCells: [], whatIfHidden: [] };
+    const ok = runSolver(st, level);
+    const solved = ok && !hasUnknown(st.cells) && validFull(st);
+    return Object.assign({ solved }, st.score);
   }
 
   /* ------------------------------------------------------------------ */
@@ -617,6 +800,22 @@
     return { p, sol };
   }
 
+  // Adds clues until the puzzle is within its level's limits. Returns how far it
+  // ended up below the level's minimum (0 = a good fit).
+  function tune(p, sol, cfg, n, rng) {
+    const fleet = cfg.fleet && cfg.fleet[n], whatIf = cfg.whatIf && cfg.whatIf[n];
+    if (!fleet && !whatIf) return 0;
+    for (;;) {
+      const g = grade(p, cfg.level);
+      const cells = whatIf && g.whatIf > whatIf[1] ? g.whatIfCells
+        : whatIf && g.whatIfHidden.length ? g.whatIfHidden
+          : fleet && g.fleet > fleet[1] ? g.fleetCells : null;
+      if (!cells) return whatIf ? Math.max(0, whatIf[0] - g.whatIf) : Math.max(0, fleet[0] - g.fleet);
+      p.hints.push(hintFor(sol, n, cells[Math.floor(rng() * cells.length)]));
+      p.hints.sort((a, b) => a[0] - b[0]);
+    }
+  }
+
   /**
    * generate({ size, difficulty, seed }) → puzzle
    * puzzle = { n, fleet, rows, cols, hints: [[index, WATER|SHIP, shape]], solution, seed, difficulty }
@@ -628,14 +827,14 @@
     const fleet = (opts.fleet || FLEETS[n]).slice().sort((a, b) => b - a);
     const seed = (opts.seed == null ? Math.floor(Math.random() * 1e9) : opts.seed) >>> 0;
     const rng = mulberry32(seed);
-    const tries = opts.tries || 8;
+    // Small boards can afford more attempts to land inside the level's limits.
+    const tries = opts.tries || Math.round(3600 / (n * n));
 
-    let best = null;
-    for (let t = 0; t < tries; t++) {
+    let best = null, bestMiss = Infinity;
+    for (let t = 0; t < tries && bestMiss > 0; t++) {
       const cand = attempt(n, fleet, rng, cfg.level);
-      const tooEasy = cfg.avoid > 0 && solve(cand.p, cfg.avoid).solved;
-      if (!tooEasy) { best = cand; break; }
-      if (!best || cand.p.hints.length < best.p.hints.length) best = cand;
+      const miss = tune(cand.p, cand.sol, cfg, n, rng);
+      if (miss < bestMiss) { best = cand; bestMiss = miss; }
     }
 
     const { p, sol } = best;
@@ -689,32 +888,28 @@
       t.order = [];
       if (rule(t) > 0 && t.order.length) return found(t, 1);
     }
-    {
+    for (const rule of [fleetPass, lineWaysRule]) {
       const t = cloneState(st);
       t.order = [];
-      if (fleetPass(t) > 0 && t.order.length) return found(t, 2);
+      if (rule(t) > 0 && t.order.length) return found(t, 2);
     }
-    const { N } = st.geo;
-    for (let d = 1; d <= WHAT_IF_DEPTH; d++) {
-      for (let i = 0; i < N; i++) {
-        if (st.cells[i] !== UNKNOWN) continue;
-        for (const guess of [SHIP, WATER]) {
-          const f = whatIfFails(st, i, guess, d);
-          if (!f) continue;
-          // Replay the assumption to show what it would force before it breaks.
-          const t = cloneState(st);
-          t.order = [];
-          t.cells[i] = guess;
-          for (let k = 0; k < d && basicPass(t) > 0; k++);
-          const trial = [[i, guess]].concat(t.order.map((j) => [j, t.cells[j]]));
-          return {
-            index: i, value: guess === SHIP ? WATER : SHIP, level: 3,
-            why: { code: WHY.WHAT_IF, a: guess, b: d, extra: f === true ? null : f, trial },
-          };
-        }
+    // The shortest "what if" among the cells that are natural to test.
+    let best = null;
+    for (const i of whatIfCandidates(st)) {
+      for (const guess of [SHIP, WATER]) {
+        const res = whatIfFails(st, i, guess);
+        if (res && (!best || res.trial.length < best.res.trial.length)) best = { i, guess, res };
       }
     }
+    if (best) {
+      const { i, guess, res } = best;
+      return {
+        index: i, value: guess === SHIP ? WATER : SHIP, level: 3,
+        why: { code: WHY.WHAT_IF, a: guess, extra: res.fail === true ? null : res.fail, trial: res.trial },
+      };
+    }
     // No short proof: only possible for puzzles made by an older version.
+    const { N } = st.geo;
     for (let i = 0; i < N; i++) {
       if (st.cells[i] === UNKNOWN && sol[i]) return { index: i, value: SHIP, why: null, level: 0 };
     }
@@ -725,7 +920,7 @@
   }
 
   return {
-    UNKNOWN, WATER, SHIP, SHAPE, WHY, FLEETS, DIFFICULTIES, WHAT_IF_DEPTH, ENGINE_VERSION,
-    generate, solve, nextHint, shapeAt, placeFleet, mulberry32,
+    UNKNOWN, WATER, SHIP, SHAPE, WHY, FLEETS, DIFFICULTIES, ENGINE_VERSION,
+    generate, solve, grade, nextHint, shapeAt, placeFleet, mulberry32,
   };
 });

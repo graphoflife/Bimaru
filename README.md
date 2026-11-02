@@ -66,26 +66,38 @@ keeps the 12×12 fleet on 15×15 and only adds longer ships on its 20×20 boards
 
 ### Difficulty levels
 
-Difficulty is defined by the reasoning a puzzle needs, not only by the number of clues:
+Difficulty is defined by the techniques a puzzle needs, not only by the number of clues. The techniques
+come from published Bimaru guides ([Conceptis](https://www.conceptispuzzles.com/index.aspx?uri=puzzle/battleships/techniques),
+[Wikipedia](https://en.wikipedia.org/wiki/Battleship_(puzzle)), [Luke Rissacher](https://lukerissacher.com/battleships),
+[puzzles.wiki](https://www.puzzles.wiki/wiki/Battleship_(logic_puzzle))). Which technique belongs to which level is this game's own design.
 
-| Level | What you need |
-| --- | --- |
-| Easy | Row and column counts, the given piece shapes, and the rule that ships never touch. Extra clues. |
-| Medium | The same strategies, with as few clues as possible |
-| Hard | Plus fleet reasoning: where can the missing ships still fit? |
-| Expert | Plus a short "what if": assume a cell is a ship (or water), apply one round of the simple rules, and see a row, column or ship break |
+| Level | Techniques | Hard moments per puzzle |
+| --- | --- | --- |
+| Easy | **Corners**, **Given piece**, **The rest is water**, **Only spots left**. Extra clues. | None |
+| Medium | The same techniques, with as few clues as possible | None |
+| Hard | Plus **Only place it fits**, **Overlap**, **One way only**, **No ship fits here**, **Finish the ship**, **Finish the line** | 2–3 on 6×6, up to 4–9 on 15×15 |
+| Expert | Plus **What if?** | The above, plus 1–2 what-ifs on 6×6, up to 2–5 on 15×15 |
+
+### Fair by design
+
+Every technique is kept at a size a person can follow:
+
+- **Fleet techniques** compare at most 7 positions and fit at most 3 ships of a type together.
+- **Finish the line** only looks at nearly complete rows and columns (at most 2 ship segments or water cells left) with at most 6 ways to finish.
+- **What if?** only tests cells in rows and columns with at most 4 open cells, and follows the assumption locally: its corners, the given pieces it touches, its own row and column, and the corners of what those force.
+- **Limits per puzzle:** if a puzzle needs too many hard moments, or a what-if is too hidden (more than 12 tries per assumption that works), the generator adds a clue there.
 
 ### No guessing, guaranteed
 
-A puzzle only ships if the solver can finish it using the strategies of its level, so you never need
+A puzzle only ships if the solver can finish it using the techniques of its level, so you never need
 to guess. This holds from *any* position, not only from the start: whatever correct marks you have
 made, in whatever order, a provable next move exists. The test suite checks exactly that by starting
 from random partial boards and following hints to the end.
 
-The **Hint** button uses the same strategies. It always reveals a cell that can be proven from what
-you already have on the board, and tells you why ("Row 4 already has all 3 ship segments, so the rest
-of it is water"). For an Expert "what if" step it plays the proof on the board: the assumption, what it
-forces, and what breaks.
+The **Hint** button uses the same techniques. It always reveals a cell that can be proven from what
+you already have on the board, names the technique and tells you why ("Row 4 already has all 3 ship
+segments, so the rest of it is water"). For an Expert "what if" step it plays the proof on the board:
+the assumption, what it forces, and what breaks.
 
 ## Run it locally
 

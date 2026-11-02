@@ -623,8 +623,12 @@ kbd {
   pointer-events: none;
   transition: transform 0.45s var(--spring), opacity 0.25s var(--ease);
 }
-.toast.is-show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast.is-show { transform: translate(-50%, 0) scale(1); opacity: 1; pointer-events: auto; }
 .toast.is-long { border-radius: 22px; font-size: 14.5px; line-height: 1.4; padding: 13px 18px; }
+.toast-title {
+  display: block; margin-bottom: 2px;
+  font-size: 11.5px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-2);
+}
 .toast button {
   appearance: none; border: 0; cursor: pointer; background: transparent; color: var(--accent-2);
   font-weight: 900; padding: 0;
