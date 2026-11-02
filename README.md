@@ -17,7 +17,7 @@ one solution and can be solved by logic alone, with no guessing.
 
 ## Features
 
-- **4 board sizes** (6×6, 8×8, 10×10, 12×12) and **4 difficulties** (Easy, Medium, Hard, Expert)
+- **5 board sizes** (6×6 to 15×15) with growing fleets and **4 difficulties** (Easy, Medium, Hard, Expert)
 - **Endless puzzles**, generated on your device in milliseconds, each with a unique solution
 - **Phone and laptop**: touch, mouse and keyboard; installable as an app (PWA) and works offline
 - **Pastel light and dark themes** with smooth animations; ship pieces morph into shape as you play
@@ -45,6 +45,24 @@ one solution and can be solved by logic alone, with no guessing.
 | Move and mark | | Arrow keys, `Space`, `W`, `S`, `Backspace` |
 | Undo / redo | Tool buttons | `Ctrl+Z` / `Ctrl+Y` |
 | Hint | Tool button | `H` |
+
+### Boards and fleets
+
+Bigger boards hide more ships and longer ships. Most fleets follow the triangular pattern common in
+published Bimaru puzzles: one ship of the longest length, two of the next length, and so on.
+
+| Board | Ships | Ship cells | Longest ship | Fleet (count × length) |
+| --- | --- | --- | --- | --- |
+| 6×6 | 6 | 10 | 3 | 1×3, 2×2, 3×1 |
+| 8×8 | 8 | 17 | 4 | 1×4, 2×3, 2×2, 3×1 |
+| 10×10 | 10 | 20 | 4 | 1×4, 2×3, 3×2, 4×1 |
+| 12×12 | 15 | 35 | 5 | 1×5, 2×4, 3×3, 4×2, 5×1 |
+| 15×15 | 21 | 56 | 6 | 1×6, 2×5, 3×4, 4×3, 5×2, 6×1 |
+
+The fleets up to 12×12 are ones used in the [Janko.at puzzle archive](https://www.janko.at/Raetsel/Battleships/index.htm).
+The 15×15 fleet is this game's own next step in the pattern, at about the same density as Janko's
+12×12 and 14×14 boards. Other sites differ at this size: [puzzle-battleships.com](https://www.puzzle-battleships.com/)
+keeps the 12×12 fleet on 15×15 and only adds longer ships on its 20×20 boards and up.
 
 ### Difficulty levels
 

@@ -22,15 +22,26 @@
   const SHAPE = { NONE: 0, SINGLE: 1, TOP: 2, BOTTOM: 3, LEFT: 4, RIGHT: 5, MIDDLE: 6 };
   const { NONE, SINGLE, TOP, BOTTOM, LEFT, RIGHT, MIDDLE } = SHAPE;
 
+  // Fleets follow the "triangular" pattern used by published Bimaru puzzles:
+  // the longest ship appears once, the next length twice, and so on. Bigger
+  // boards get one more length, so both the ship count and the longest ship grow.
+  // Arguments are how many ships there are of length 1, 2, 3, ...
+  function fleetOf(...counts) {
+    const fleet = [];
+    counts.forEach((count, k) => { for (let c = 0; c < count; c++) fleet.push(k + 1); });
+    return fleet.reverse();
+  }
+
   const FLEETS = {
-    6: [3, 2, 2, 1, 1, 1],
-    8: [4, 3, 3, 2, 2, 1, 1, 1],
-    10: [4, 3, 3, 2, 2, 2, 1, 1, 1, 1],
-    12: [5, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1],
+    6: fleetOf(3, 2, 1),
+    8: fleetOf(3, 2, 2, 1),
+    10: fleetOf(4, 3, 2, 1),
+    12: fleetOf(5, 4, 3, 2, 1),
+    15: fleetOf(6, 5, 4, 3, 2, 1),
   };
 
   // Bumped whenever the generator changes, so old saved puzzles can be told apart.
-  const ENGINE_VERSION = 2;
+  const ENGINE_VERSION = 3;
 
   // level: strongest solving technique the puzzle may require
   //   1 = row/column counts, given segment shapes, no-touching rule

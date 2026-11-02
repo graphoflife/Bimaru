@@ -15,7 +15,7 @@
   const sideLayout = window.matchMedia('(min-aspect-ratio: 5/4) and (min-width: 700px), (orientation: landscape) and (max-height: 520px)');
   const SPRING = 'cubic-bezier(.34,1.56,.64,1)';
 
-  const SIZES = [6, 8, 10, 12];
+  const SIZES = [6, 8, 10, 12, 15];
   const DIFFS = ['easy', 'medium', 'hard', 'expert'];
   const DIFF_INFO = {
     easy: { name: 'Easy', desc: 'Plenty of clues. Counting rows and columns is all you need.' },
@@ -284,6 +284,7 @@
     if (!game) return;
     settleInstantly();
     const n = game.n;
+    layoutFleet();
     // The board gets whatever space the fleet and tools leave over, so the
     // whole group can be centred on screen.
     const play = boardWrap.parentElement, cs = getComputedStyle(play);
@@ -304,7 +305,6 @@
     s.setProperty('--label', geo.label + 'px');
     s.setProperty('--pad', geo.pad + 'px');
     for (let i = 0; i < game.N; i++) renderPiece(i);
-    layoutFleet();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1231,7 +1231,7 @@
       for (const n of SIZES) {
         const s = all[`${n}-${d}`];
         if (!s || !s.won) html += '<td class="empty">–</td>';
-        else html += `<td>${s.best != null ? fmtTime(s.best) : '✓'}<small>${s.won}× solved</small></td>`;
+        else html += `<td>${s.best != null ? fmtTime(s.best) : '✓'}<small>${s.won}×</small></td>`;
       }
       html += '</tr>';
     }
@@ -1431,19 +1431,28 @@
   /* Menu & settings wiring                                               */
   /* ------------------------------------------------------------------ */
 
-  initSeg($('#seg-size'), settings.size, (v) => { settings.size = +v; saveSettings(); });
+  initSeg($('#seg-size'), settings.size, (v) => {
+    settings.size = +v;
+    saveSettings();
+    fadeText($('#size-desc'), fleetText());
+  });
   initSeg($('#seg-diff'), settings.difficulty, (v) => {
     settings.difficulty = v;
     saveSettings();
-    setDiffText();
+    fadeText($('#diff-desc'), DIFF_INFO[v].desc);
   });
   initSeg($('#seg-theme'), settings.theme, (v) => { settings.theme = v; saveSettings(); applyTheme(); });
 
-  function setDiffText() {
-    const p = $('#diff-desc');
-    p.style.opacity = '0';
-    setTimeout(() => { p.textContent = DIFF_INFO[settings.difficulty].desc; p.style.opacity = '1'; }, 120);
+  function fleetText() {
+    const fleet = E.FLEETS[settings.size];
+    return `${fleet.length} ships, up to ${Math.max(...fleet)} cells long`;
   }
+  function fadeText(p, text) {
+    p.style.opacity = '0';
+    clearTimeout(p._fade);
+    p._fade = setTimeout(() => { p.textContent = text; p.style.opacity = '1'; }, 120);
+  }
+  $('#size-desc').textContent = fleetText();
   $('#diff-desc').textContent = DIFF_INFO[settings.difficulty].desc;
 
   $('#btn-play').addEventListener('click', () => {
