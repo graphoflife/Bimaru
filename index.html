@@ -53,9 +53,17 @@
       <div class="menu">
         <div class="hero">
           <svg class="hero-art" viewBox="0 0 160 100" aria-hidden="true">
-            <defs><clipPath id="hero-clip"><rect x="0" y="0" width="160" height="100"/></clipPath></defs>
-            <g clip-path="url(#hero-clip)">
-              <path class="hero-wave back" d="M-40 74 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--wave)" stroke-width="5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="hero-fade-edges" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="160" y2="0">
+                <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+                <stop offset="0.2" stop-color="#fff"/>
+                <stop offset="0.8" stop-color="#fff"/>
+                <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+              </linearGradient>
+              <mask id="hero-fade" maskUnits="userSpaceOnUse" x="0" y="0" width="160" height="100"><rect width="160" height="100" fill="url(#hero-fade-edges)"/></mask>
+            </defs>
+            <g mask="url(#hero-fade)">
+              <path class="hero-wave back" d="M-40 74 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--wave)" stroke-width="5" stroke-linecap="round"/>
             </g>
             <g class="hero-ship">
               <path d="M80 44 V16" stroke="var(--ink-soft)" stroke-width="3.5" stroke-linecap="round"/>
@@ -67,8 +75,8 @@
               <circle cx="80" cy="56" r="4.5" fill="#fff" opacity=".85"/>
               <circle cx="112" cy="56" r="4.5" fill="#fff" opacity=".85"/>
             </g>
-            <g clip-path="url(#hero-clip)">
-              <path class="hero-wave" d="M-40 82 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--wave)" stroke-width="5" stroke-linecap="round"/>
+            <g mask="url(#hero-fade)">
+              <path class="hero-wave" d="M-40 82 q10 -7 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke="var(--wave)" stroke-width="5" stroke-linecap="round"/>
             </g>
           </svg>
           <h1 class="title" aria-label="Bimaru"><span>B</span><span>i</span><span>m</span><span>a</span><span>r</span><span>u</span></h1>
